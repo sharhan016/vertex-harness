@@ -4,9 +4,9 @@ Vertex is a Python-first toolkit for making long-running software work understan
 verifiable, and recoverable. It is being built in small, working phases so the source
 and Git history explain both the design and its evolution.
 
-The current phase provides only the project foundation: an installable package, a
-minimal command-line entry point, tests, and an architectural roadmap. Workflow and
-state behavior will be introduced in later phases.
+The current implementation provides the project foundation and a dependency-free core
+model for projects, tasks, acceptance criteria, dependencies, and lifecycle rules.
+Durable state and user-facing workflow commands will be introduced in later phases.
 
 ## Requirements
 
