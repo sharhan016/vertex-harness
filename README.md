@@ -4,9 +4,9 @@ Vertex is a Python-first toolkit for making long-running software work understan
 verifiable, and recoverable. It is being built in small, working phases so the source
 and Git history explain both the design and its evolution.
 
-The current implementation provides the project foundation and a dependency-free core
-model for projects, tasks, acceptance criteria, dependencies, and lifecycle rules.
-Durable state and user-facing workflow commands will be introduced in later phases.
+The current implementation provides the project foundation, a dependency-free core
+model, and guarded repository-local JSON state. User-facing workflow commands will be
+introduced in the next phase.
 
 ## Requirements
 
@@ -42,6 +42,7 @@ vertex
 src/vertex_harness/   Python package and CLI
 tests/                Automated tests
 docs/                 Roadmap and architectural decisions
+.vertex/project.json  Canonical state after a repository is initialized
 ```
 
 The local `reference/` directory is intentionally excluded from version control. It is
