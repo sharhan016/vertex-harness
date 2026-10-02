@@ -11,6 +11,7 @@ from vertex_harness.domain.errors import (
     InvalidTransitionError,
     UnknownTaskError,
     UnmetDependenciesError,
+    TaskConfigurationError,
     ValidationError,
     VerificationMismatchError,
 )
@@ -43,6 +44,40 @@ class AcceptanceCriterion:
 
 
 @dataclass(frozen=True, slots=True)
+class VerificationCheck:
+    """An executable command mapped to one or more acceptance criteria."""
+
+    id: str
+    command: tuple[str, ...]
+    criterion_ids: tuple[str, ...]
+    timeout_seconds: int = 300
+
+    def __post_init__(self) -> None:
+        _require_text(self.id, "check id")
+        command = tuple(self.command)
+        criterion_ids = tuple(self.criterion_ids)
+        object.__setattr__(self, "command", command)
+        object.__setattr__(self, "criterion_ids", criterion_ids)
+
+        if not command:
+            raise ValidationError("verification command cannot be empty")
+        for argument in command:
+            _require_text(argument, "verification command argument")
+        if not criterion_ids:
+            raise ValidationError("verification check must cover at least one criterion")
+        for criterion_id in criterion_ids:
+            _require_text(criterion_id, "verification criterion id")
+        if len(criterion_ids) != len(set(criterion_ids)):
+            raise ValidationError("verification criterion ids must be unique")
+        if (
+            not isinstance(self.timeout_seconds, int)
+            or isinstance(self.timeout_seconds, bool)
+            or not 1 <= self.timeout_seconds <= 3600
+        ):
+            raise ValidationError("verification timeout must be between 1 and 3600 seconds")
+
+
+@dataclass(frozen=True, slots=True)
 class Task:
     """A bounded outcome and the conditions required to finish it."""
 
@@ -53,6 +88,7 @@ class Task:
     dependencies: tuple[str, ...] = ()
     status: TaskStatus = TaskStatus.PLANNED
     blocker: str | None = None
+    checks: tuple[VerificationCheck, ...] = ()
 
     def __post_init__(self) -> None:
         _require_text(self.id, "task id")
@@ -61,8 +97,10 @@ class Task:
 
         criteria = tuple(self.acceptance_criteria)
         dependencies = tuple(self.dependencies)
+        checks = tuple(self.checks)
         object.__setattr__(self, "acceptance_criteria", criteria)
         object.__setattr__(self, "dependencies", dependencies)
+        object.__setattr__(self, "checks", checks)
 
         if not criteria:
             raise ValidationError("task must define at least one acceptance criterion")
@@ -70,6 +108,8 @@ class Task:
             raise ValidationError("task acceptance criteria must be criterion objects")
         if not isinstance(self.status, TaskStatus):
             raise ValidationError("task status must be a TaskStatus value")
+        if not all(isinstance(check, VerificationCheck) for check in checks):
+            raise ValidationError("task checks must be verification check objects")
         for dependency in dependencies:
             _require_text(dependency, "dependency id")
 
@@ -80,6 +120,18 @@ class Task:
             raise ValidationError("task dependencies must be unique")
         if self.id in dependencies:
             raise ValidationError("task cannot depend on itself")
+        check_ids = [check.id for check in checks]
+        if len(check_ids) != len(set(check_ids)):
+            raise ValidationError("verification check ids must be unique within a task")
+        unknown_criteria = {
+            criterion_id
+            for check in checks
+            for criterion_id in check.criterion_ids
+            if criterion_id not in set(criterion_ids)
+        }
+        if unknown_criteria:
+            joined = ", ".join(sorted(unknown_criteria))
+            raise ValidationError(f"verification checks reference unknown criteria: {joined}")
 
         if self.status is TaskStatus.BLOCKED:
             _require_text(self.blocker, "blocker")
@@ -158,6 +210,19 @@ class Project:
         if incomplete:
             raise UnmetDependenciesError(task.id, incomplete)
         return self._replace_task(replace(task, status=TaskStatus.ACTIVE))
+
+    def add_check(self, task_id: str, check: VerificationCheck) -> Project:
+        """Add a verification check while a task is still planned."""
+        task = self.task(task_id)
+        if task.status is not TaskStatus.PLANNED:
+            raise TaskConfigurationError(
+                f"checks can only be added to planned tasks; {task.id!r} is {task.status}"
+            )
+        if any(existing.id == check.id for existing in task.checks):
+            raise TaskConfigurationError(
+                f"check {check.id!r} already exists on task {task.id!r}"
+            )
+        return self._replace_task(replace(task, checks=(*task.checks, check)))
 
     def block_task(self, task_id: str, reason: str) -> Project:
         """Pause active work with an explicit blocker."""

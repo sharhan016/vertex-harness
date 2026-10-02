@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from pathlib import Path
 
-from vertex_harness.domain import AcceptanceCriterion, Project, Task
+from vertex_harness.domain import AcceptanceCriterion, Project, Task, VerificationCheck
 from vertex_harness.state import ProjectStore, StateSnapshot
 
 
@@ -49,6 +49,26 @@ class WorkflowService:
     def start_task(self, repository: Path | str, task_id: str) -> StateSnapshot:
         return ProjectStore(repository).update(
             lambda project: project.start_task(task_id)
+        )
+
+    def add_check(
+        self,
+        repository: Path | str,
+        task_id: str,
+        *,
+        check_id: str,
+        command: Iterable[str],
+        criterion_ids: Iterable[str],
+        timeout_seconds: int = 300,
+    ) -> StateSnapshot:
+        check = VerificationCheck(
+            id=check_id,
+            command=tuple(command),
+            criterion_ids=tuple(criterion_ids),
+            timeout_seconds=timeout_seconds,
+        )
+        return ProjectStore(repository).update(
+            lambda project: project.add_check(task_id, check)
         )
 
     def block_task(

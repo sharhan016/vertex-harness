@@ -5,8 +5,8 @@ verifiable, and recoverable. It is being built in small, working phases so the s
 and Git history explain both the design and its evolution.
 
 The current implementation provides the project foundation, a dependency-free core
-model, guarded repository-local JSON state, and CLI-driven task workflows. Completion
-will be introduced only with durable verification evidence.
+model, guarded repository-local JSON state, CLI-driven task workflows, and executable
+verification with durable evidence.
 
 ## Requirements
 
@@ -36,9 +36,16 @@ vertex --version
 vertex init . --objective "Deliver a useful change"
 vertex task add . --id T-1 --title "First task" --outcome "A result exists" \
   --criterion "AC-1=The result can be observed"
+vertex check add . T-1 --id tests --criterion AC-1 \
+  --command python -m pytest
 vertex task start . T-1
+vertex verify . T-1
+vertex evidence . --task T-1
 vertex status .
 ```
+
+Verification commands execute directly with the current user's permissions; Vertex is
+an evidence recorder and lifecycle guard, not a security sandbox.
 
 ## Project layout
 

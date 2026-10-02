@@ -4,6 +4,7 @@ import pytest
 
 from vertex_harness.domain import (
     AcceptanceCriterion,
+    DomainError,
     DuplicateTaskError,
     InvalidTransitionError,
     Project,
@@ -13,6 +14,7 @@ from vertex_harness.domain import (
     UnmetDependenciesError,
     ValidationError,
     VerificationMismatchError,
+    VerificationCheck,
 )
 
 
@@ -128,3 +130,36 @@ def test_invalid_transitions_and_unknown_tasks_are_explicit():
         project.resume_task("T-1")
     with pytest.raises(UnknownTaskError):
         project.start_task("T-404")
+
+
+def test_verification_checks_must_map_to_declared_criteria():
+    check = VerificationCheck(
+        "tests",
+        ("python", "-m", "pytest"),
+        ("T-1-AC-1",),
+        timeout_seconds=30,
+    )
+    project = Project("Ship a dependable tool").add_task(task("T-1"))
+    configured = project.add_check("T-1", check)
+
+    assert configured.task("T-1").checks == (check,)
+    assert project.task("T-1").checks == ()
+
+    with pytest.raises(ValidationError, match="unknown criteria"):
+        Task(
+            "T-2",
+            "Title",
+            "Outcome",
+            (criterion("AC-2"),),
+            checks=(VerificationCheck("bad", ("true",), ("UNKNOWN",)),),
+        )
+
+
+def test_checks_cannot_change_after_work_starts():
+    project = Project("Ship a dependable tool").add_task(task("T-1"))
+    project = project.start_task("T-1")
+
+    with pytest.raises(DomainError, match="planned tasks"):
+        project.add_check(
+            "T-1", VerificationCheck("tests", ("true",), ("T-1-AC-1",))
+        )

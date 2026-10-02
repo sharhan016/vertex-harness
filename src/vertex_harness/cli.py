@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import Any
 
 from vertex_harness import __version__
-from vertex_harness.application import WorkflowError, WorkflowService
+from vertex_harness.application import (
+    VerificationError,
+    VerificationService,
+    WorkflowError,
+    WorkflowService,
+)
 from vertex_harness.domain import AcceptanceCriterion, DomainError
 from vertex_harness.state import StateError, StateSnapshot
 
@@ -72,6 +77,36 @@ def build_parser() -> argparse.ArgumentParser:
     _repository_argument(resume)
     resume.add_argument("task_id")
     resume.set_defaults(handler=_resume_task)
+
+    check = commands.add_parser("check", help="configure verification checks")
+    check_commands = check.add_subparsers(dest="check_command")
+    check_add = check_commands.add_parser("add", help="add a check to a planned task")
+    _repository_argument(check_add)
+    check_add.add_argument("task_id")
+    check_add.add_argument("--id", required=True, dest="check_id")
+    check_add.add_argument(
+        "--criterion", required=True, action="append", dest="criterion_ids"
+    )
+    check_add.add_argument("--timeout", type=int, default=300, dest="timeout_seconds")
+    check_add.add_argument(
+        "--command",
+        required=True,
+        nargs=argparse.REMAINDER,
+        dest="command_argv",
+        help="command and arguments (must be the final option)",
+    )
+    check_add.set_defaults(handler=_add_check)
+
+    verify = commands.add_parser("verify", help="run checks and complete an active task")
+    _repository_argument(verify)
+    verify.add_argument("task_id")
+    verify.set_defaults(handler=_verify)
+
+    evidence = commands.add_parser("evidence", help="show verification receipts")
+    _repository_argument(evidence)
+    evidence.add_argument("--task", dest="task_id")
+    evidence.add_argument("--json", action="store_true")
+    evidence.set_defaults(handler=_evidence)
     return parser
 
 
@@ -85,7 +120,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     try:
         return handler(arguments)
-    except (DomainError, StateError, WorkflowError) as error:
+    except (DomainError, StateError, VerificationError, WorkflowError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 
@@ -155,6 +190,53 @@ def _resume_task(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _add_check(arguments: argparse.Namespace) -> int:
+    command = list(arguments.command_argv)
+    snapshot = WorkflowService().add_check(
+        arguments.repository,
+        arguments.task_id,
+        check_id=arguments.check_id,
+        command=command,
+        criterion_ids=arguments.criterion_ids,
+        timeout_seconds=arguments.timeout_seconds,
+    )
+    print(f"added check {arguments.check_id} (revision {snapshot.revision})")
+    return 0
+
+
+def _verify(arguments: argparse.Namespace) -> int:
+    result = VerificationService().verify(arguments.repository, arguments.task_id)
+    for receipt in result.receipts:
+        print(f"{receipt.check_id}: {receipt.outcome.value} ({receipt.id})")
+    if result.passed:
+        print(f"completed task {arguments.task_id} (revision {result.snapshot.revision})")
+        return 0
+    print(f"task {arguments.task_id} remains active", file=sys.stderr)
+    return 1
+
+
+def _evidence(arguments: argparse.Namespace) -> int:
+    snapshot = WorkflowService().status(arguments.repository)
+    receipts = [
+        receipt
+        for receipt in snapshot.evidence
+        if arguments.task_id is None or receipt.task_id == arguments.task_id
+    ]
+    values = [_evidence_view(receipt) for receipt in receipts]
+    if arguments.json:
+        print(json.dumps(values, sort_keys=True))
+    elif not values:
+        print("Evidence: none")
+    else:
+        print("Evidence:")
+        for value in values:
+            print(
+                f"  {value['id']} {value['task_id']}/{value['check_id']} "
+                f"[{value['outcome']}]"
+            )
+    return 0
+
+
 def _snapshot_view(snapshot: StateSnapshot) -> dict[str, Any]:
     available = {task.id for task in snapshot.project.available_tasks()}
     return {
@@ -173,9 +255,37 @@ def _snapshot_view(snapshot: StateSnapshot) -> dict[str, Any]:
                     {"id": criterion.id, "description": criterion.description}
                     for criterion in task.acceptance_criteria
                 ],
+                "checks": [
+                    {
+                        "id": check.id,
+                        "command": list(check.command),
+                        "criterion_ids": list(check.criterion_ids),
+                        "timeout_seconds": check.timeout_seconds,
+                    }
+                    for check in task.checks
+                ],
             }
             for task in snapshot.project.tasks
         ],
+        "evidence_count": len(snapshot.evidence),
+    }
+
+
+def _evidence_view(receipt) -> dict[str, Any]:
+    return {
+        "id": receipt.id,
+        "task_id": receipt.task_id,
+        "check_id": receipt.check_id,
+        "command": list(receipt.command),
+        "criterion_ids": list(receipt.criterion_ids),
+        "started_at": receipt.started_at,
+        "finished_at": receipt.finished_at,
+        "outcome": receipt.outcome.value,
+        "exit_code": receipt.exit_code,
+        "stdout": receipt.stdout,
+        "stderr": receipt.stderr,
+        "source_before": receipt.source_before,
+        "source_after": receipt.source_after,
     }
 
 

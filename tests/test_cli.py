@@ -1,4 +1,5 @@
 import json
+import sys
 
 from vertex_harness import __version__
 from vertex_harness.cli import main
@@ -72,3 +73,50 @@ def test_cli_reports_domain_errors_without_traceback(tmp_path, capsys):
     assert captured.out == ""
     assert "error: task 'missing' does not exist" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_cli_configures_runs_and_lists_verification(tmp_path, capsys):
+    main(["init", str(tmp_path), "--objective", "Ship verified work"])
+    main(
+        [
+            "task",
+            "add",
+            str(tmp_path),
+            "--id",
+            "T-1",
+            "--title",
+            "Verify it",
+            "--outcome",
+            "It is verified",
+            "--criterion",
+            "AC-1=The command passes",
+        ]
+    )
+    assert main(
+        [
+            "check",
+            "add",
+            str(tmp_path),
+            "T-1",
+            "--id",
+            "smoke",
+            "--criterion",
+            "AC-1",
+            "--command",
+            sys.executable,
+            "-c",
+            "print('ok')",
+        ]
+    ) == 0
+    main(["task", "start", str(tmp_path), "T-1"])
+    capsys.readouterr()
+
+    assert main(["verify", str(tmp_path), "T-1"]) == 0
+    verification = capsys.readouterr()
+    assert "smoke: passed" in verification.out
+    assert "completed task T-1" in verification.out
+
+    assert main(["evidence", str(tmp_path), "--task", "T-1", "--json"]) == 0
+    evidence = json.loads(capsys.readouterr().out)
+    assert evidence[0]["check_id"] == "smoke"
+    assert evidence[0]["outcome"] == "passed"

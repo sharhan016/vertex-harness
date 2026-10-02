@@ -2,7 +2,15 @@ import json
 
 import pytest
 
-from vertex_harness.domain import AcceptanceCriterion, Project, Task, TaskStatus
+from vertex_harness.domain import (
+    AcceptanceCriterion,
+    EvidenceOutcome,
+    EvidenceReceipt,
+    Project,
+    Task,
+    TaskStatus,
+    VerificationCheck,
+)
 from vertex_harness.state import (
     ProjectStore,
     RevisionConflictError,
@@ -39,7 +47,7 @@ def test_initialize_and_load_round_trip(tmp_path):
     assert store.path.stat().st_mode & 0o777 == 0o644
 
     raw = json.loads(store.path.read_text(encoding="utf-8"))
-    assert raw["schema_version"] == 1
+    assert raw["schema_version"] == 2
     assert raw["project"]["tasks"][1]["dependencies"] == ["T-1"]
 
 
@@ -145,3 +153,58 @@ def test_transform_must_return_a_project(tmp_path):
         store.update(lambda _project: None)  # type: ignore[arg-type,return-value]
 
     assert store.load() == original
+
+
+def test_schema_one_state_loads_and_upgrades_on_next_write(tmp_path):
+    store = ProjectStore(tmp_path)
+    store.initialize(project())
+    data = json.loads(store.path.read_text(encoding="utf-8"))
+    data["schema_version"] = 1
+    data.pop("evidence")
+    for value in data["project"]["tasks"]:
+        value.pop("checks")
+    store.path.write_text(json.dumps(data), encoding="utf-8")
+
+    legacy = store.load()
+    assert legacy.evidence == ()
+    assert legacy.project.task("T-1").checks == ()
+
+    updated = store.update(lambda value: value.start_task("T-1"))
+    rewritten = json.loads(store.path.read_text(encoding="utf-8"))
+    assert updated.revision == 1
+    assert rewritten["schema_version"] == 2
+    assert rewritten["evidence"] == []
+    assert rewritten["project"]["tasks"][0]["checks"] == []
+
+
+def test_checks_and_evidence_round_trip(tmp_path):
+    configured = project().add_check(
+        "T-1", VerificationCheck("unit", ("python", "-m", "pytest"), ("AC-1",))
+    )
+    receipt = EvidenceReceipt(
+        id="EV-1",
+        task_id="T-1",
+        check_id="unit",
+        command=("python", "-m", "pytest"),
+        criterion_ids=("AC-1",),
+        started_at="2026-10-03T00:00:00+00:00",
+        finished_at="2026-10-03T00:00:01+00:00",
+        outcome=EvidenceOutcome.PASSED,
+        exit_code=0,
+        stdout="ok",
+        stderr="",
+        source_before="abc",
+        source_after="abc",
+    )
+    store = ProjectStore(tmp_path)
+    store.initialize(configured)
+    stored = store.transaction(
+        lambda snapshot: type(snapshot)(
+            revision=snapshot.revision,
+            project=snapshot.project,
+            evidence=(receipt,),
+        )
+    )
+
+    assert stored.evidence == (receipt,)
+    assert store.load() == stored

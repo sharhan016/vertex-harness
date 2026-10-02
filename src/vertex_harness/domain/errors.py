@@ -21,6 +21,10 @@ class DuplicateTaskError(DomainError):
         self.task_id = task_id
 
 
+class TaskConfigurationError(DomainError):
+    """Raised when a task's verification contract cannot be changed safely."""
+
+
 class UnknownTaskError(DomainError):
     """Raised when a requested task does not exist."""
 
