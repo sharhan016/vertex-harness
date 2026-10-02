@@ -47,7 +47,7 @@ def test_initialize_and_load_round_trip(tmp_path):
     assert store.path.stat().st_mode & 0o777 == 0o644
 
     raw = json.loads(store.path.read_text(encoding="utf-8"))
-    assert raw["schema_version"] == 2
+    assert raw["schema_version"] == 3
     assert raw["project"]["tasks"][1]["dependencies"] == ["T-1"]
 
 
@@ -161,6 +161,8 @@ def test_schema_one_state_loads_and_upgrades_on_next_write(tmp_path):
     data = json.loads(store.path.read_text(encoding="utf-8"))
     data["schema_version"] = 1
     data.pop("evidence")
+    data.pop("attempts")
+    data.pop("checkpoints")
     for value in data["project"]["tasks"]:
         value.pop("checks")
     store.path.write_text(json.dumps(data), encoding="utf-8")
@@ -172,8 +174,10 @@ def test_schema_one_state_loads_and_upgrades_on_next_write(tmp_path):
     updated = store.update(lambda value: value.start_task("T-1"))
     rewritten = json.loads(store.path.read_text(encoding="utf-8"))
     assert updated.revision == 1
-    assert rewritten["schema_version"] == 2
+    assert rewritten["schema_version"] == 3
     assert rewritten["evidence"] == []
+    assert rewritten["attempts"] == []
+    assert rewritten["checkpoints"] == []
     assert rewritten["project"]["tasks"][0]["checks"] == []
 
 
@@ -208,3 +212,21 @@ def test_checks_and_evidence_round_trip(tmp_path):
 
     assert stored.evidence == (receipt,)
     assert store.load() == stored
+
+
+def test_schema_two_state_loads_and_upgrades_on_next_write(tmp_path):
+    store = ProjectStore(tmp_path)
+    store.initialize(project())
+    data = json.loads(store.path.read_text(encoding="utf-8"))
+    data["schema_version"] = 2
+    data.pop("attempts")
+    data.pop("checkpoints")
+    store.path.write_text(json.dumps(data), encoding="utf-8")
+
+    legacy = store.load()
+    assert legacy.attempts == ()
+    assert legacy.checkpoints == ()
+
+    store.update(lambda value: value)
+    rewritten = json.loads(store.path.read_text(encoding="utf-8"))
+    assert rewritten["schema_version"] == 3

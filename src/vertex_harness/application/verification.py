@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import signal
 import stat
 import subprocess
 from dataclasses import dataclass, replace
@@ -12,11 +13,13 @@ from pathlib import Path
 from uuid import uuid4
 
 from vertex_harness.domain import (
+    AttemptStatus,
     EvidenceOutcome,
     EvidenceReceipt,
     InvalidTransitionError,
     TaskStatus,
     VerificationCheck,
+    VerificationAttempt,
 )
 from vertex_harness.state import ProjectStore, StateSnapshot
 
@@ -59,7 +62,14 @@ class VerificationService:
                 f"task {task.id!r} has criteria without checks: {joined}"
             )
 
-        receipts = tuple(self._run_check(root, task.id, check) for check in task.checks)
+        current = initial
+        collected: list[EvidenceReceipt] = []
+        for check in task.checks:
+            receipt, current = self._run_check(
+                root, store, current, task.id, check
+            )
+            collected.append(receipt)
+        receipts = tuple(collected)
         passed = all(receipt.passed for receipt in receipts)
         verified = {
             criterion_id
@@ -68,46 +78,70 @@ class VerificationService:
             for criterion_id in receipt.criterion_ids
         }
 
-        def record(snapshot: StateSnapshot) -> StateSnapshot:
-            project = snapshot.project
-            if passed:
-                project = project.complete_task(task.id, verified)
-            return replace(
-                snapshot,
-                project=project,
-                evidence=(*snapshot.evidence, *receipts),
+        if passed:
+            current = store.update(
+                lambda project: project.complete_task(task.id, verified),
+                expected_revision=current.revision,
             )
-
-        updated = store.transaction(record, expected_revision=initial.revision)
-        return VerificationResult(snapshot=updated, receipts=receipts, passed=passed)
+        return VerificationResult(snapshot=current, receipts=receipts, passed=passed)
 
     def _run_check(
-        self, repository: Path, task_id: str, check: VerificationCheck
-    ) -> EvidenceReceipt:
+        self,
+        repository: Path,
+        store: ProjectStore,
+        snapshot: StateSnapshot,
+        task_id: str,
+        check: VerificationCheck,
+    ) -> tuple[EvidenceReceipt, StateSnapshot]:
         source_before = source_fingerprint(repository)
         started_at = _now()
+        attempt = VerificationAttempt(
+            id=f"AT-{uuid4().hex}",
+            task_id=task_id,
+            check_id=check.id,
+            command=check.command,
+            started_at=started_at,
+        )
+        current = store.transaction(
+            lambda state: replace(state, attempts=(*state.attempts, attempt)),
+            expected_revision=snapshot.revision,
+        )
         exit_code: int | None = None
         stdout = ""
         stderr = ""
         outcome = EvidenceOutcome.FAILED
+        process: subprocess.Popen[str] | None = None
         try:
-            completed = subprocess.run(
+            process = subprocess.Popen(
                 list(check.command),
                 cwd=repository,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=check.timeout_seconds,
-                check=False,
+                start_new_session=os.name == "posix",
             )
-            exit_code = completed.returncode
-            stdout = completed.stdout
-            stderr = completed.stderr
+            running = replace(attempt, pid=process.pid)
+            try:
+                current = store.transaction(
+                    lambda state: replace(
+                        state,
+                        attempts=_replace_attempt(state.attempts, running),
+                    ),
+                    expected_revision=current.revision,
+                )
+            except BaseException:
+                _terminate(process)
+                raise
+
+            try:
+                stdout, stderr = process.communicate(timeout=check.timeout_seconds)
+            except subprocess.TimeoutExpired:
+                _terminate(process)
+                stdout, stderr = process.communicate()
+                outcome = EvidenceOutcome.TIMED_OUT
+            exit_code = process.returncode
             if exit_code == 0:
                 outcome = EvidenceOutcome.PASSED
-        except subprocess.TimeoutExpired as error:
-            stdout = _output_text(error.stdout)
-            stderr = _output_text(error.stderr)
-            outcome = EvidenceOutcome.TIMED_OUT
         except OSError as error:
             stderr = str(error)
         finished_at = _now()
@@ -115,7 +149,7 @@ class VerificationService:
         if outcome is EvidenceOutcome.PASSED and source_after != source_before:
             outcome = EvidenceOutcome.SOURCE_CHANGED
 
-        return EvidenceReceipt(
+        receipt = EvidenceReceipt(
             id=f"EV-{uuid4().hex}",
             task_id=task_id,
             check_id=check.id,
@@ -130,6 +164,22 @@ class VerificationService:
             source_before=source_before,
             source_after=source_after,
         )
+        finished = replace(
+            attempt,
+            status=AttemptStatus.FINISHED,
+            pid=process.pid if process is not None else None,
+            finished_at=finished_at,
+            receipt_id=receipt.id,
+        )
+        current = store.transaction(
+            lambda state: replace(
+                state,
+                attempts=_replace_attempt(state.attempts, finished),
+                evidence=(*state.evidence, receipt),
+            ),
+            expected_revision=current.revision,
+        )
+        return receipt, current
 
 
 def source_fingerprint(repository: Path | str) -> str:
@@ -221,9 +271,19 @@ def _bounded(value: str) -> str:
     )
 
 
-def _output_text(value: str | bytes | None) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value
+def _replace_attempt(
+    attempts: tuple[VerificationAttempt, ...], replacement: VerificationAttempt
+) -> tuple[VerificationAttempt, ...]:
+    return tuple(
+        replacement if attempt.id == replacement.id else attempt
+        for attempt in attempts
+    )
+
+
+def _terminate(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        return
+    if os.name == "posix":
+        os.killpg(process.pid, signal.SIGKILL)
+    else:
+        process.kill()

@@ -1,5 +1,11 @@
 """Use-case services for Vertex interfaces."""
 
+from vertex_harness.application.recovery import (
+    CheckpointService,
+    RecoveryError,
+    RecoveryReport,
+    RecoveryService,
+)
 from vertex_harness.application.workflows import WorkflowError, WorkflowService
 from vertex_harness.application.verification import (
     VerificationError,
@@ -13,4 +19,8 @@ __all__ = [
     "VerificationService",
     "WorkflowError",
     "WorkflowService",
+    "CheckpointService",
+    "RecoveryError",
+    "RecoveryReport",
+    "RecoveryService",
 ]

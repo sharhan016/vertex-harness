@@ -6,7 +6,8 @@ and Git history explain both the design and its evolution.
 
 The current implementation provides the project foundation, a dependency-free core
 model, guarded repository-local JSON state, CLI-driven task workflows, and executable
-verification with durable evidence.
+verification with durable evidence. Recorded attempts and checkpoints make interrupted
+work explicit and recoverable without automatic retries.
 
 ## Requirements
 
@@ -41,11 +42,17 @@ vertex check add . T-1 --id tests --criterion AC-1 \
 vertex task start . T-1
 vertex verify . T-1
 vertex evidence . --task T-1
+vertex checkpoint create . --task T-1 --note "Ready for review"
+vertex recover .
 vertex status .
 ```
 
 Verification commands execute directly with the current user's permissions; Vertex is
 an evidence recorder and lifecycle guard, not a security sandbox.
+
+If verification is interrupted, run `vertex recover .`. Vertex refuses recovery while
+the recorded process is alive. When the process is gone, it marks the attempt
+interrupted and blocks the task so side effects can be inspected before `task resume`.
 
 ## Project layout
 

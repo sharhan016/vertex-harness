@@ -18,9 +18,12 @@ from vertex_harness.domain.model import (
     TaskStatus,
     VerificationCheck,
 )
+from vertex_harness.domain.recovery import AttemptStatus, Checkpoint, VerificationAttempt
 
 __all__ = [
     "AcceptanceCriterion",
+    "AttemptStatus",
+    "Checkpoint",
     "DomainError",
     "DuplicateTaskError",
     "EvidenceOutcome",
@@ -35,4 +38,5 @@ __all__ = [
     "ValidationError",
     "VerificationMismatchError",
     "VerificationCheck",
+    "VerificationAttempt",
 ]

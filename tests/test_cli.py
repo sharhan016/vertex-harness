@@ -120,3 +120,23 @@ def test_cli_configures_runs_and_lists_verification(tmp_path, capsys):
     evidence = json.loads(capsys.readouterr().out)
     assert evidence[0]["check_id"] == "smoke"
     assert evidence[0]["outcome"] == "passed"
+
+
+def test_cli_creates_and_lists_checkpoints(tmp_path, capsys):
+    main(["init", str(tmp_path), "--objective", "Pause safely"])
+    capsys.readouterr()
+
+    assert main(
+        [
+            "checkpoint",
+            "create",
+            str(tmp_path),
+            "--note",
+            "Research is complete",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    assert main(["checkpoint", "list", str(tmp_path), "--json"]) == 0
+    checkpoints = json.loads(capsys.readouterr().out)
+    assert checkpoints[0]["note"] == "Research is complete"

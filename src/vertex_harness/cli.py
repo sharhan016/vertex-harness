@@ -11,6 +11,9 @@ from typing import Any
 
 from vertex_harness import __version__
 from vertex_harness.application import (
+    CheckpointService,
+    RecoveryError,
+    RecoveryService,
     VerificationError,
     VerificationService,
     WorkflowError,
@@ -107,6 +110,26 @@ def build_parser() -> argparse.ArgumentParser:
     evidence.add_argument("--task", dest="task_id")
     evidence.add_argument("--json", action="store_true")
     evidence.set_defaults(handler=_evidence)
+
+    recover = commands.add_parser("recover", help="reconcile interrupted verification")
+    _repository_argument(recover)
+    recover.set_defaults(handler=_recover)
+
+    checkpoint = commands.add_parser("checkpoint", help="manage durable handoff notes")
+    checkpoint_commands = checkpoint.add_subparsers(dest="checkpoint_command")
+    checkpoint_create = checkpoint_commands.add_parser(
+        "create", help="record a handoff checkpoint"
+    )
+    _repository_argument(checkpoint_create)
+    checkpoint_create.add_argument("--note", required=True)
+    checkpoint_create.add_argument("--task", dest="task_id")
+    checkpoint_create.set_defaults(handler=_create_checkpoint)
+    checkpoint_list = checkpoint_commands.add_parser(
+        "list", help="show recorded checkpoints"
+    )
+    _repository_argument(checkpoint_list)
+    checkpoint_list.add_argument("--json", action="store_true")
+    checkpoint_list.set_defaults(handler=_list_checkpoints)
     return parser
 
 
@@ -120,7 +143,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     try:
         return handler(arguments)
-    except (DomainError, StateError, VerificationError, WorkflowError) as error:
+    except (
+        DomainError,
+        RecoveryError,
+        StateError,
+        VerificationError,
+        WorkflowError,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 
@@ -237,6 +266,61 @@ def _evidence(arguments: argparse.Namespace) -> int:
     return 0
 
 
+def _recover(arguments: argparse.Namespace) -> int:
+    report = RecoveryService().recover(arguments.repository)
+    if report.stale_lock_removed:
+        print("removed stale state lock")
+    if report.live_attempt_ids:
+        print(
+            "live verification remains: " + ", ".join(report.live_attempt_ids),
+            file=sys.stderr,
+        )
+        return 1
+    if report.interrupted_attempt_ids:
+        print(
+            "reconciled interrupted verification: "
+            + ", ".join(report.interrupted_attempt_ids)
+        )
+        print("inspect side effects, then resume the blocked task explicitly")
+    else:
+        print("no interrupted verification found")
+    return 0
+
+
+def _create_checkpoint(arguments: argparse.Namespace) -> int:
+    checkpoint, snapshot = CheckpointService().create(
+        arguments.repository,
+        arguments.note,
+        task_id=arguments.task_id,
+    )
+    print(f"created checkpoint {checkpoint.id} (revision {snapshot.revision})")
+    return 0
+
+
+def _list_checkpoints(arguments: argparse.Namespace) -> int:
+    snapshot = WorkflowService().status(arguments.repository)
+    values = [
+        {
+            "id": checkpoint.id,
+            "created_at": checkpoint.created_at,
+            "revision": checkpoint.revision,
+            "task_id": checkpoint.task_id,
+            "note": checkpoint.note,
+        }
+        for checkpoint in snapshot.checkpoints
+    ]
+    if arguments.json:
+        print(json.dumps(values, sort_keys=True))
+    elif not values:
+        print("Checkpoints: none")
+    else:
+        print("Checkpoints:")
+        for value in values:
+            task = f" · {value['task_id']}" if value["task_id"] else ""
+            print(f"  {value['id']}{task} — {value['note']}")
+    return 0
+
+
 def _snapshot_view(snapshot: StateSnapshot) -> dict[str, Any]:
     available = {task.id for task in snapshot.project.available_tasks()}
     return {
@@ -268,6 +352,10 @@ def _snapshot_view(snapshot: StateSnapshot) -> dict[str, Any]:
             for task in snapshot.project.tasks
         ],
         "evidence_count": len(snapshot.evidence),
+        "running_attempts": sum(
+            attempt.status.value == "running" for attempt in snapshot.attempts
+        ),
+        "checkpoint_count": len(snapshot.checkpoints),
     }
 
 

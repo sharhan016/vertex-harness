@@ -13,6 +13,8 @@ from typing import Any
 
 from vertex_harness.domain import (
     AcceptanceCriterion,
+    AttemptStatus,
+    Checkpoint,
     EvidenceOutcome,
     EvidenceReceipt,
     Project,
@@ -20,6 +22,7 @@ from vertex_harness.domain import (
     TaskStatus,
     ValidationError,
     VerificationCheck,
+    VerificationAttempt,
 )
 from vertex_harness.state.errors import (
     RevisionConflictError,
@@ -29,7 +32,7 @@ from vertex_harness.state.errors import (
     StateNotFoundError,
 )
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,14 +42,24 @@ class StateSnapshot:
     revision: int
     project: Project
     evidence: tuple[EvidenceReceipt, ...] = ()
+    attempts: tuple[VerificationAttempt, ...] = ()
+    checkpoints: tuple[Checkpoint, ...] = ()
 
     def __post_init__(self) -> None:
         evidence = tuple(self.evidence)
+        attempts = tuple(self.attempts)
+        checkpoints = tuple(self.checkpoints)
         object.__setattr__(self, "evidence", evidence)
+        object.__setattr__(self, "attempts", attempts)
+        object.__setattr__(self, "checkpoints", checkpoints)
         if not isinstance(self.project, Project):
             raise TypeError("state project must be a Project")
         if not all(isinstance(receipt, EvidenceReceipt) for receipt in evidence):
             raise TypeError("state evidence must contain EvidenceReceipt values")
+        if not all(isinstance(attempt, VerificationAttempt) for attempt in attempts):
+            raise TypeError("state attempts must contain VerificationAttempt values")
+        if not all(isinstance(checkpoint, Checkpoint) for checkpoint in checkpoints):
+            raise TypeError("state checkpoints must contain Checkpoint values")
         if (
             not isinstance(self.revision, int)
             or isinstance(self.revision, bool)
@@ -174,6 +187,10 @@ def _encode_snapshot(snapshot: StateSnapshot) -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "revision": snapshot.revision,
         "evidence": [_encode_evidence(receipt) for receipt in snapshot.evidence],
+        "attempts": [_encode_attempt(attempt) for attempt in snapshot.attempts],
+        "checkpoints": [
+            _encode_checkpoint(checkpoint) for checkpoint in snapshot.checkpoints
+        ],
         "project": {
             "objective": snapshot.project.objective,
             "tasks": [
@@ -211,18 +228,38 @@ def _decode_snapshot(raw: object) -> StateSnapshot:
     schema_version = root["schema_version"]
     if not isinstance(schema_version, int) or isinstance(schema_version, bool):
         raise StateFormatError("schema version must be an integer")
-    if schema_version not in {1, SCHEMA_VERSION}:
+    if schema_version not in {1, 2, SCHEMA_VERSION}:
         raise StateFormatError(
-            f"unsupported schema version {schema_version!r}; expected 1 or {SCHEMA_VERSION}"
+            f"unsupported schema version {schema_version!r}; expected 1, 2, or {SCHEMA_VERSION}"
         )
     if schema_version == 1:
         _exact_keys(root, {"schema_version", "revision", "project"}, "state")
         evidence_values: list[Any] = []
-    else:
+        attempt_values: list[Any] = []
+        checkpoint_values: list[Any] = []
+    elif schema_version == 2:
         _exact_keys(
             root, {"schema_version", "revision", "project", "evidence"}, "state"
         )
         evidence_values = _list(root["evidence"], "state evidence")
+        attempt_values = []
+        checkpoint_values = []
+    else:
+        _exact_keys(
+            root,
+            {
+                "schema_version",
+                "revision",
+                "project",
+                "evidence",
+                "attempts",
+                "checkpoints",
+            },
+            "state",
+        )
+        evidence_values = _list(root["evidence"], "state evidence")
+        attempt_values = _list(root["attempts"], "state attempts")
+        checkpoint_values = _list(root["checkpoints"], "state checkpoints")
 
     revision = root["revision"]
     if not isinstance(revision, int) or isinstance(revision, bool) or revision < 0:
@@ -243,9 +280,23 @@ def _decode_snapshot(raw: object) -> StateSnapshot:
             _decode_evidence(value, index)
             for index, value in enumerate(evidence_values)
         )
+        attempts = tuple(
+            _decode_attempt(value, index)
+            for index, value in enumerate(attempt_values)
+        )
+        checkpoints = tuple(
+            _decode_checkpoint(value, index)
+            for index, value in enumerate(checkpoint_values)
+        )
     except (ValidationError, ValueError) as error:
         raise StateFormatError(f"stored project violates a domain rule: {error}") from error
-    return StateSnapshot(revision=revision, project=project, evidence=evidence)
+    return StateSnapshot(
+        revision=revision,
+        project=project,
+        evidence=evidence,
+        attempts=attempts,
+        checkpoints=checkpoints,
+    )
 
 
 def _decode_task(raw: object, index: int, *, schema_version: int) -> Task:
@@ -399,6 +450,90 @@ def _decode_evidence(raw: object, index: int) -> EvidenceReceipt:
     )
 
 
+def _encode_attempt(attempt: VerificationAttempt) -> dict[str, Any]:
+    return {
+        "id": attempt.id,
+        "task_id": attempt.task_id,
+        "check_id": attempt.check_id,
+        "command": list(attempt.command),
+        "started_at": attempt.started_at,
+        "status": attempt.status.value,
+        "pid": attempt.pid,
+        "finished_at": attempt.finished_at,
+        "receipt_id": attempt.receipt_id,
+        "note": attempt.note,
+    }
+
+
+def _decode_attempt(raw: object, index: int) -> VerificationAttempt:
+    context = f"attempt at index {index}"
+    data = _mapping(raw, context)
+    fields = {
+        "id",
+        "task_id",
+        "check_id",
+        "command",
+        "started_at",
+        "status",
+        "pid",
+        "finished_at",
+        "receipt_id",
+        "note",
+    }
+    _exact_keys(data, fields, context)
+    status_value = _text(data["status"], f"{context} status")
+    try:
+        status = AttemptStatus(status_value)
+    except ValueError as error:
+        raise StateFormatError(f"{context} has unknown status {status_value!r}") from error
+    pid = data["pid"]
+    if pid is not None and (
+        not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0
+    ):
+        raise StateFormatError(f"{context} pid must be a positive integer or null")
+    return VerificationAttempt(
+        id=_text(data["id"], f"{context} id"),
+        task_id=_text(data["task_id"], f"{context} task id"),
+        check_id=_text(data["check_id"], f"{context} check id"),
+        command=tuple(
+            _text(value, f"{context} command argument")
+            for value in _list(data["command"], f"{context} command")
+        ),
+        started_at=_text(data["started_at"], f"{context} started_at"),
+        status=status,
+        pid=pid,
+        finished_at=_optional_text(data["finished_at"], f"{context} finished_at"),
+        receipt_id=_optional_text(data["receipt_id"], f"{context} receipt id"),
+        note=_optional_text(data["note"], f"{context} note"),
+    )
+
+
+def _encode_checkpoint(checkpoint: Checkpoint) -> dict[str, Any]:
+    return {
+        "id": checkpoint.id,
+        "created_at": checkpoint.created_at,
+        "revision": checkpoint.revision,
+        "task_id": checkpoint.task_id,
+        "note": checkpoint.note,
+    }
+
+
+def _decode_checkpoint(raw: object, index: int) -> Checkpoint:
+    context = f"checkpoint at index {index}"
+    data = _mapping(raw, context)
+    _exact_keys(data, {"id", "created_at", "revision", "task_id", "note"}, context)
+    revision = data["revision"]
+    if not isinstance(revision, int) or isinstance(revision, bool) or revision < 0:
+        raise StateFormatError(f"{context} revision must be a non-negative integer")
+    return Checkpoint(
+        id=_text(data["id"], f"{context} id"),
+        created_at=_text(data["created_at"], f"{context} created_at"),
+        revision=revision,
+        task_id=_optional_text(data["task_id"], f"{context} task id"),
+        note=_text(data["note"], f"{context} note"),
+    )
+
+
 def _decode_criterion(raw: object, index: int, task_context: str) -> AcceptanceCriterion:
     context = f"criterion at index {index} in {task_context}"
     data = _mapping(raw, context)
@@ -431,6 +566,12 @@ def _string(value: object, context: str) -> str:
     if not isinstance(value, str):
         raise StateFormatError(f"{context} must be text")
     return value
+
+
+def _optional_text(value: object, context: str) -> str | None:
+    if value is None:
+        return None
+    return _text(value, context)
 
 
 def _exact_keys(data: Mapping[str, Any], expected: set[str], context: str) -> None:

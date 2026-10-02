@@ -1,7 +1,12 @@
 import sys
 
 from vertex_harness.application import VerificationService, WorkflowService
-from vertex_harness.domain import AcceptanceCriterion, EvidenceOutcome, TaskStatus
+from vertex_harness.domain import (
+    AcceptanceCriterion,
+    AttemptStatus,
+    EvidenceOutcome,
+    TaskStatus,
+)
 
 
 def active_task(tmp_path, command, *, criteria=("AC-1",)):
@@ -35,6 +40,9 @@ def test_passing_check_persists_evidence_and_completes_task(tmp_path):
     assert result.receipts[0].outcome is EvidenceOutcome.PASSED
     assert result.receipts[0].stdout == "verified\n"
     assert result.snapshot.evidence == result.receipts
+    assert len(result.snapshot.attempts) == 1
+    assert result.snapshot.attempts[0].status is AttemptStatus.FINISHED
+    assert result.snapshot.attempts[0].receipt_id == result.receipts[0].id
 
 
 def test_failing_check_records_evidence_and_leaves_task_active(tmp_path):

@@ -9,7 +9,7 @@ commit.
 - [x] **State** — durable repository-local storage with validation and safe updates.
 - [x] **Workflows** — a small task lifecycle driven by the core rules.
 - [x] **Verification and evidence** — executable checks and durable proof tied to inputs.
-- [ ] **Recovery** — checkpoints and reconciliation of interrupted work.
+- [x] **Recovery** — checkpoints and reconciliation of interrupted work.
 - [ ] **Repository intelligence** — useful, conservative source discovery and queries.
 - [ ] **Agent integration** — read-only MCP tools and bounded agent-facing context.
 - [ ] **Interfaces** — local API and dashboard built on the same application services.
