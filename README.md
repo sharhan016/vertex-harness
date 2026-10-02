@@ -5,8 +5,8 @@ verifiable, and recoverable. It is being built in small, working phases so the s
 and Git history explain both the design and its evolution.
 
 The current implementation provides the project foundation, a dependency-free core
-model, and guarded repository-local JSON state. User-facing workflow commands will be
-introduced in the next phase.
+model, guarded repository-local JSON state, and CLI-driven task workflows. Completion
+will be introduced only with durable verification evidence.
 
 ## Requirements
 
@@ -33,7 +33,11 @@ Try the CLI:
 
 ```console
 vertex --version
-vertex
+vertex init . --objective "Deliver a useful change"
+vertex task add . --id T-1 --title "First task" --outcome "A result exists" \
+  --criterion "AC-1=The result can be observed"
+vertex task start . T-1
+vertex status .
 ```
 
 ## Project layout

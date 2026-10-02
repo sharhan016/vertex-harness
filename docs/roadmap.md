@@ -7,7 +7,7 @@ commit.
 - [x] **Foundation** — package layout, CLI entry point, tests, and project conventions.
 - [x] **Core concepts** — explicit domain types and lifecycle rules without persistence.
 - [x] **State** — durable repository-local storage with validation and safe updates.
-- [ ] **Workflows** — a small task lifecycle driven by the core rules.
+- [x] **Workflows** — a small task lifecycle driven by the core rules.
 - [ ] **Verification and evidence** — executable checks and durable proof tied to inputs.
 - [ ] **Recovery** — checkpoints and reconciliation of interrupted work.
 - [ ] **Repository intelligence** — useful, conservative source discovery and queries.
