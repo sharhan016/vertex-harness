@@ -1,5 +1,6 @@
 """Use-case services for Vertex interfaces."""
 
+from vertex_harness.application.context import ContextBudgetError, ContextService
 from vertex_harness.application.recovery import (
     CheckpointService,
     RecoveryError,
@@ -20,6 +21,8 @@ __all__ = [
     "WorkflowError",
     "WorkflowService",
     "CheckpointService",
+    "ContextBudgetError",
+    "ContextService",
     "RecoveryError",
     "RecoveryReport",
     "RecoveryService",

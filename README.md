@@ -8,7 +8,8 @@ The current implementation provides the project foundation, a dependency-free co
 model, guarded repository-local JSON state, CLI-driven task workflows, and executable
 verification with durable evidence. Recorded attempts and checkpoints make interrupted
 work explicit and recoverable without automatic retries. A conservative Python index
-adds symbol discovery and import-impact queries.
+adds symbol discovery and import-impact queries. Agents can consume bounded context and
+the same read-only queries through MCP.
 
 ## Requirements
 
@@ -48,6 +49,7 @@ vertex recover .
 vertex index .
 vertex query . search WorkflowService
 vertex query . impact src/vertex_harness/domain/model.py
+vertex context . --task T-1 --bytes 8000
 vertex status .
 ```
 
@@ -61,6 +63,25 @@ interrupted and blocks the task so side effects can be inspected before `task re
 Repository queries are advisory. The current index understands Python declarations and
 imports; it does not infer runtime calls or claim coverage for other languages. Query
 output says when the generated index is stale.
+
+## MCP integration
+
+Register the local stdio server with an MCP host:
+
+```json
+{
+  "mcpServers": {
+    "vertex": {
+      "command": "vertex",
+      "args": ["mcp", "/absolute/path/to/repository"]
+    }
+  }
+}
+```
+
+The server supports the current stateless MCP lifecycle and legacy initialize clients.
+Its tools can read status, context, and the generated Python index; they cannot change
+state or execute verification commands.
 
 ## Project layout
 

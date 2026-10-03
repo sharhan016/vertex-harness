@@ -11,7 +11,7 @@ commit.
 - [x] **Verification and evidence** — executable checks and durable proof tied to inputs.
 - [x] **Recovery** — checkpoints and reconciliation of interrupted work.
 - [x] **Repository intelligence** — useful, conservative source discovery and queries.
-- [ ] **Agent integration** — read-only MCP tools and bounded agent-facing context.
+- [x] **Agent integration** — read-only MCP tools and bounded agent-facing context.
 - [ ] **Interfaces** — local API and dashboard built on the same application services.
 - [ ] **Packaging** — installation, release checks, and supported upgrade paths.
 

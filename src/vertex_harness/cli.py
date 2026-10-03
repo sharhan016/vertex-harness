@@ -12,6 +12,8 @@ from typing import Any
 from vertex_harness import __version__
 from vertex_harness.application import (
     CheckpointService,
+    ContextBudgetError,
+    ContextService,
     RecoveryError,
     RecoveryService,
     VerificationError,
@@ -20,6 +22,7 @@ from vertex_harness.application import (
     WorkflowService,
 )
 from vertex_harness.domain import AcceptanceCriterion, DomainError
+from vertex_harness.application.views import evidence_view, snapshot_view
 from vertex_harness.intelligence import (
     IndexFormatError,
     IndexNotFoundError,
@@ -152,6 +155,16 @@ def build_parser() -> argparse.ArgumentParser:
     query.add_argument("value")
     query.add_argument("--json", action="store_true")
     query.set_defaults(handler=_query_repository)
+
+    context = commands.add_parser("context", help="build bounded agent context")
+    _repository_argument(context)
+    context.add_argument("--task", dest="task_id")
+    context.add_argument("--bytes", type=int, default=8_000, dest="max_bytes")
+    context.set_defaults(handler=_context)
+
+    mcp = commands.add_parser("mcp", help="serve read-only MCP tools over stdio")
+    _repository_argument(mcp)
+    mcp.set_defaults(handler=_mcp)
     return parser
 
 
@@ -167,6 +180,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return handler(arguments)
     except (
         DomainError,
+        ContextBudgetError,
         IndexFormatError,
         IndexNotFoundError,
         IndexingError,
@@ -206,7 +220,7 @@ def _initialize(arguments: argparse.Namespace) -> int:
 def _status(arguments: argparse.Namespace) -> int:
     snapshot = WorkflowService().status(arguments.repository)
     if arguments.json:
-        print(json.dumps(_snapshot_view(snapshot), sort_keys=True))
+        print(json.dumps(snapshot_view(snapshot), sort_keys=True))
     else:
         _print_status(snapshot)
     return 0
@@ -277,7 +291,7 @@ def _evidence(arguments: argparse.Namespace) -> int:
         for receipt in snapshot.evidence
         if arguments.task_id is None or receipt.task_id == arguments.task_id
     ]
-    values = [_evidence_view(receipt) for receipt in receipts]
+    values = [evidence_view(receipt) for receipt in receipts]
     if arguments.json:
         print(json.dumps(values, sort_keys=True))
     elif not values:
@@ -384,64 +398,25 @@ def _query_repository(arguments: argparse.Namespace) -> int:
     return 0
 
 
-def _snapshot_view(snapshot: StateSnapshot) -> dict[str, Any]:
-    available = {task.id for task in snapshot.project.available_tasks()}
-    return {
-        "revision": snapshot.revision,
-        "objective": snapshot.project.objective,
-        "tasks": [
-            {
-                "id": task.id,
-                "title": task.title,
-                "outcome": task.outcome,
-                "status": task.status.value,
-                "blocker": task.blocker,
-                "dependencies": list(task.dependencies),
-                "available": task.id in available,
-                "acceptance_criteria": [
-                    {"id": criterion.id, "description": criterion.description}
-                    for criterion in task.acceptance_criteria
-                ],
-                "checks": [
-                    {
-                        "id": check.id,
-                        "command": list(check.command),
-                        "criterion_ids": list(check.criterion_ids),
-                        "timeout_seconds": check.timeout_seconds,
-                    }
-                    for check in task.checks
-                ],
-            }
-            for task in snapshot.project.tasks
-        ],
-        "evidence_count": len(snapshot.evidence),
-        "running_attempts": sum(
-            attempt.status.value == "running" for attempt in snapshot.attempts
-        ),
-        "checkpoint_count": len(snapshot.checkpoints),
-    }
+def _context(arguments: argparse.Namespace) -> int:
+    packet = ContextService().build(
+        arguments.repository,
+        task_id=arguments.task_id,
+        max_bytes=arguments.max_bytes,
+    )
+    print(json.dumps(packet, indent=2, sort_keys=True))
+    return 0
 
 
-def _evidence_view(receipt) -> dict[str, Any]:
-    return {
-        "id": receipt.id,
-        "task_id": receipt.task_id,
-        "check_id": receipt.check_id,
-        "command": list(receipt.command),
-        "criterion_ids": list(receipt.criterion_ids),
-        "started_at": receipt.started_at,
-        "finished_at": receipt.finished_at,
-        "outcome": receipt.outcome.value,
-        "exit_code": receipt.exit_code,
-        "stdout": receipt.stdout,
-        "stderr": receipt.stderr,
-        "source_before": receipt.source_before,
-        "source_after": receipt.source_after,
-    }
+def _mcp(arguments: argparse.Namespace) -> int:
+    from vertex_harness.agent import serve_stdio
+
+    serve_stdio(arguments.repository)
+    return 0
 
 
 def _print_status(snapshot: StateSnapshot) -> None:
-    view = _snapshot_view(snapshot)
+    view = snapshot_view(snapshot)
     print(f"Objective: {view['objective']}")
     print(f"Revision: {view['revision']}")
     tasks = view["tasks"]

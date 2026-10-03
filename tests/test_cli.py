@@ -153,3 +153,28 @@ def test_cli_builds_and_queries_python_index(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["stale"] is False
     assert payload["results"][0]["path"] == "sample.py"
+
+
+def test_cli_emits_bounded_agent_context(tmp_path, capsys):
+    main(["init", str(tmp_path), "--objective", "Give context"])
+    main(
+        [
+            "task",
+            "add",
+            str(tmp_path),
+            "--id",
+            "T-1",
+            "--title",
+            "Context task",
+            "--outcome",
+            "Context exists",
+            "--criterion",
+            "AC-1=The packet names the task",
+        ]
+    )
+    capsys.readouterr()
+
+    assert main(["context", str(tmp_path), "--task", "T-1"]) == 0
+    packet = json.loads(capsys.readouterr().out)
+    assert packet["task"]["id"] == "T-1"
+    assert packet["bytes"] <= 8_000
