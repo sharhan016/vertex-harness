@@ -21,8 +21,8 @@ from vertex_harness.domain import (
     Task,
     TaskStatus,
     ValidationError,
-    VerificationCheck,
     VerificationAttempt,
+    VerificationCheck,
 )
 from vertex_harness.state.errors import (
     RevisionConflictError,

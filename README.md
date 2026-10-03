@@ -16,6 +16,18 @@ status, evidence, context, and index as an observational field ledger.
 
 - Python 3.11 or newer
 
+## Installation
+
+Install directly from the Git repository with `pipx`:
+
+```console
+pipx install git+https://github.com/sharhan016/vertex-harness.git
+vertex --version
+```
+
+For development, clone the repository and use an editable virtual environment as shown
+below. Vertex has no third-party runtime dependencies.
+
 ## Development setup
 
 Create a virtual environment and install the project with its development tools:
@@ -29,8 +41,10 @@ python -m pip install -e '.[dev]'
 Run the checks:
 
 ```console
+python -m ruff check .
 python -m pytest
 python -m compileall -q src tests
+python -m build
 ```
 
 Try the CLI:
@@ -52,6 +66,7 @@ vertex query . search WorkflowService
 vertex query . impact src/vertex_harness/domain/model.py
 vertex context . --task T-1 --bytes 8000
 vertex serve . --open
+vertex doctor .
 vertex status .
 ```
 
@@ -102,6 +117,7 @@ untrusted.
 src/vertex_harness/   Python package and CLI
 tests/                Automated tests
 docs/                 Roadmap and architectural decisions
+.github/workflows/    Supported-version and packaging checks
 .vertex/project.json  Canonical state after a repository is initialized
 ```
 
@@ -110,5 +126,14 @@ not part of Vertex's source or distribution.
 
 ## Project status
 
-Vertex is under active construction and is not ready for production use. See
-[`docs/roadmap.md`](docs/roadmap.md) for the intended sequence.
+The initial zero-to-one roadmap is complete at version 0.1.0. Vertex remains pre-alpha:
+its local contracts are tested, but it does not claim production isolation, hosted
+identity, or remote-service guarantees. See [`docs/roadmap.md`](docs/roadmap.md), the
+[`development guide`](docs/development.md), and the
+[`command reference`](docs/command-reference.md).
+
+## License
+
+No open-source license is currently included. Copyright law therefore reserves reuse
+rights by default; choose a license explicitly before distributing Vertex as an
+open-source package.

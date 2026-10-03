@@ -13,8 +13,8 @@ from vertex_harness.domain import (
     UnknownTaskError,
     UnmetDependenciesError,
     ValidationError,
-    VerificationMismatchError,
     VerificationCheck,
+    VerificationMismatchError,
 )
 
 

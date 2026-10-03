@@ -16,8 +16,8 @@ from vertex_harness.domain import (
     EvidenceReceipt,
     InvalidTransitionError,
     TaskStatus,
-    VerificationCheck,
     VerificationAttempt,
+    VerificationCheck,
 )
 from vertex_harness.state import ProjectStore, StateSnapshot
 from vertex_harness.workspace import source_fingerprint

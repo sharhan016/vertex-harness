@@ -178,3 +178,10 @@ def test_cli_emits_bounded_agent_context(tmp_path, capsys):
     packet = json.loads(capsys.readouterr().out)
     assert packet["task"]["id"] == "T-1"
     assert packet["bytes"] <= 8_000
+
+
+def test_cli_doctor_reports_repository_health(tmp_path, capsys):
+    assert main(["doctor", str(tmp_path), "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["overall"] == "warning"
+    assert report["checks"][0]["name"] == "python"

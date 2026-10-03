@@ -13,7 +13,7 @@ commit.
 - [x] **Repository intelligence** — useful, conservative source discovery and queries.
 - [x] **Agent integration** — read-only MCP tools and bounded agent-facing context.
 - [x] **Interfaces** — local API and dashboard built on the same application services.
-- [ ] **Packaging** — installation, release checks, and supported upgrade paths.
+- [x] **Packaging** — installation, release checks, and supported upgrade paths.
 
 The ordering may change when an earlier phase reveals a simpler boundary. Features are
 not pulled forward merely to make later architecture appear complete.
@@ -21,7 +21,7 @@ not pulled forward merely to make later architecture appear complete.
 ## Current non-goals
 
 - Hosted services or accounts
-- Automatic execution of agent or shell commands
+- Automatic agent implementation commands or implicit shell execution
 - A plugin/provider framework
 - Multiple storage backends
 - Authentication or remote collaboration

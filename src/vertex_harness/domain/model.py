@@ -9,9 +9,9 @@ from enum import StrEnum
 from vertex_harness.domain.errors import (
     DuplicateTaskError,
     InvalidTransitionError,
+    TaskConfigurationError,
     UnknownTaskError,
     UnmetDependenciesError,
-    TaskConfigurationError,
     ValidationError,
     VerificationMismatchError,
 )

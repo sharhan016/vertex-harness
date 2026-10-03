@@ -7,7 +7,6 @@ import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 
 from vertex_harness import __version__
 from vertex_harness.application import (
@@ -20,14 +19,15 @@ from vertex_harness.application import (
     VerificationService,
     WorkflowError,
     WorkflowService,
+    diagnose,
 )
-from vertex_harness.domain import AcceptanceCriterion, DomainError
 from vertex_harness.application.views import evidence_view, snapshot_view
+from vertex_harness.domain import AcceptanceCriterion, DomainError
 from vertex_harness.intelligence import (
     IndexFormatError,
+    IndexingError,
     IndexNotFoundError,
     IndexStore,
-    IndexingError,
     QueryError,
     QueryService,
 )
@@ -171,6 +171,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--port", type=int, default=0)
     serve.add_argument("--open", action="store_true", dest="open_browser")
     serve.set_defaults(handler=_serve)
+
+    doctor = commands.add_parser("doctor", help="diagnose installation and repository")
+    _repository_argument(doctor)
+    doctor.add_argument("--json", action="store_true")
+    doctor.set_defaults(handler=_doctor)
     return parser
 
 
@@ -430,6 +435,17 @@ def _serve(arguments: argparse.Namespace) -> int:
         open_browser=arguments.open_browser,
     )
     return 0
+
+
+def _doctor(arguments: argparse.Namespace) -> int:
+    report = diagnose(arguments.repository)
+    if arguments.json:
+        print(json.dumps(report, sort_keys=True))
+    else:
+        print(f"Vertex {report['version']} — {report['overall']}")
+        for check in report["checks"]:
+            print(f"  [{check['status']}] {check['name']}: {check['detail']}")
+    return 1 if report["overall"] == "error" else 0
 
 
 def _print_status(snapshot: StateSnapshot) -> None:

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vertex-harness"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A repository-local harness for verifiable software work"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -13,11 +13,23 @@ classifiers = [
   "Development Status :: 2 - Pre-Alpha",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
+  "Operating System :: OS Independent",
+  "Topic :: Software Development :: Quality Assurance",
 ]
+keywords = ["agents", "evidence", "repository", "verification", "workflow"]
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/sharhan016/vertex-harness"
+Repository = "https://github.com/sharhan016/vertex-harness.git"
+Issues = "https://github.com/sharhan016/vertex-harness/issues"
+
 [project.optional-dependencies]
-dev = ["pytest>=8,<10"]
+dev = [
+  "build>=1,<2",
+  "pytest>=8,<10",
+  "ruff>=0.11,<1",
+]
 
 [project.scripts]
 vertex = "vertex_harness.cli:main"
@@ -28,7 +40,18 @@ where = ["src"]
 [tool.setuptools.package-data]
 "vertex_harness.interfaces" = ["web/*"]
 
+[tool.setuptools.dynamic]
+version = { attr = "vertex_harness.__version__" }
+
 [tool.pytest.ini_options]
 addopts = "-ra"
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["reference"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
