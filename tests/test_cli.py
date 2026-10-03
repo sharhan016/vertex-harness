@@ -140,3 +140,16 @@ def test_cli_creates_and_lists_checkpoints(tmp_path, capsys):
     assert main(["checkpoint", "list", str(tmp_path), "--json"]) == 0
     checkpoints = json.loads(capsys.readouterr().out)
     assert checkpoints[0]["note"] == "Research is complete"
+
+
+def test_cli_builds_and_queries_python_index(tmp_path, capsys):
+    source = tmp_path / "sample.py"
+    source.write_text("def useful_name():\n    return 1\n", encoding="utf-8")
+
+    assert main(["index", str(tmp_path)]) == 0
+    assert "indexed 1 Python files" in capsys.readouterr().out
+
+    assert main(["query", str(tmp_path), "search", "useful", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["stale"] is False
+    assert payload["results"][0]["path"] == "sample.py"

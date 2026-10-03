@@ -7,7 +7,8 @@ and Git history explain both the design and its evolution.
 The current implementation provides the project foundation, a dependency-free core
 model, guarded repository-local JSON state, CLI-driven task workflows, and executable
 verification with durable evidence. Recorded attempts and checkpoints make interrupted
-work explicit and recoverable without automatic retries.
+work explicit and recoverable without automatic retries. A conservative Python index
+adds symbol discovery and import-impact queries.
 
 ## Requirements
 
@@ -44,6 +45,9 @@ vertex verify . T-1
 vertex evidence . --task T-1
 vertex checkpoint create . --task T-1 --note "Ready for review"
 vertex recover .
+vertex index .
+vertex query . search WorkflowService
+vertex query . impact src/vertex_harness/domain/model.py
 vertex status .
 ```
 
@@ -53,6 +57,10 @@ an evidence recorder and lifecycle guard, not a security sandbox.
 If verification is interrupted, run `vertex recover .`. Vertex refuses recovery while
 the recorded process is alive. When the process is gone, it marks the attempt
 interrupted and blocks the task so side effects can be inspected before `task resume`.
+
+Repository queries are advisory. The current index understands Python declarations and
+imports; it does not infer runtime calls or claim coverage for other languages. Query
+output says when the generated index is stale.
 
 ## Project layout
 

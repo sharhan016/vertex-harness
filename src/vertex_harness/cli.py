@@ -20,6 +20,14 @@ from vertex_harness.application import (
     WorkflowService,
 )
 from vertex_harness.domain import AcceptanceCriterion, DomainError
+from vertex_harness.intelligence import (
+    IndexFormatError,
+    IndexNotFoundError,
+    IndexStore,
+    IndexingError,
+    QueryError,
+    QueryService,
+)
 from vertex_harness.state import StateError, StateSnapshot
 
 
@@ -130,6 +138,20 @@ def build_parser() -> argparse.ArgumentParser:
     _repository_argument(checkpoint_list)
     checkpoint_list.add_argument("--json", action="store_true")
     checkpoint_list.set_defaults(handler=_list_checkpoints)
+
+    index = commands.add_parser("index", help="build Python repository intelligence")
+    _repository_argument(index)
+    index.set_defaults(handler=_index_repository)
+
+    query = commands.add_parser("query", help="query the generated repository index")
+    _repository_argument(query)
+    query.add_argument(
+        "kind",
+        choices=("search", "defines", "dependencies", "dependents", "impact"),
+    )
+    query.add_argument("value")
+    query.add_argument("--json", action="store_true")
+    query.set_defaults(handler=_query_repository)
     return parser
 
 
@@ -145,6 +167,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return handler(arguments)
     except (
         DomainError,
+        IndexFormatError,
+        IndexNotFoundError,
+        IndexingError,
+        QueryError,
         RecoveryError,
         StateError,
         VerificationError,
@@ -318,6 +344,43 @@ def _list_checkpoints(arguments: argparse.Namespace) -> int:
         for value in values:
             task = f" · {value['task_id']}" if value["task_id"] else ""
             print(f"  {value['id']}{task} — {value['note']}")
+    return 0
+
+
+def _index_repository(arguments: argparse.Namespace) -> int:
+    index = IndexStore(arguments.repository).rebuild()
+    symbol_count = sum(len(unit.symbols) for unit in index.files)
+    import_count = sum(len(unit.imports) for unit in index.files)
+    print(
+        f"indexed {len(index.files)} Python files, {symbol_count} symbols, "
+        f"and {import_count} imports"
+    )
+    if index.issues:
+        print(f"retained {len(index.issues)} parse issues", file=sys.stderr)
+    return 0
+
+
+def _query_repository(arguments: argparse.Namespace) -> int:
+    payload = QueryService().execute(
+        arguments.repository, arguments.kind, arguments.value
+    )
+    if arguments.json:
+        print(json.dumps(payload, sort_keys=True))
+        return 0
+    if payload["stale"]:
+        print("warning: index is stale; run 'vertex index'", file=sys.stderr)
+    results = payload["results"]
+    if not results:
+        print("No results")
+        return 0
+    for result in results:
+        details = " · ".join(
+            f"{key}={value}"
+            for key, value in result.items()
+            if key != "path" and value is not None
+        )
+        suffix = f" · {details}" if details else ""
+        print(f"{result.get('path', '')}{suffix}")
     return 0
 
 

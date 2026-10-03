@@ -17,6 +17,8 @@ htmlcov/
 # Ephemeral Vertex state-write files (project.json is intentionally tracked)
 .vertex/write.lock
 .vertex/.project-*.tmp
+.vertex/index.json
+.vertex/.index-*.tmp
 
 # Local editor and operating-system files
 .DS_Store

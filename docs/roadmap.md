@@ -10,7 +10,7 @@ commit.
 - [x] **Workflows** — a small task lifecycle driven by the core rules.
 - [x] **Verification and evidence** — executable checks and durable proof tied to inputs.
 - [x] **Recovery** — checkpoints and reconciliation of interrupted work.
-- [ ] **Repository intelligence** — useful, conservative source discovery and queries.
+- [x] **Repository intelligence** — useful, conservative source discovery and queries.
 - [ ] **Agent integration** — read-only MCP tools and bounded agent-facing context.
 - [ ] **Interfaces** — local API and dashboard built on the same application services.
 - [ ] **Packaging** — installation, release checks, and supported upgrade paths.
