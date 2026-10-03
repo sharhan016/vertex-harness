@@ -9,7 +9,8 @@ model, guarded repository-local JSON state, CLI-driven task workflows, and execu
 verification with durable evidence. Recorded attempts and checkpoints make interrupted
 work explicit and recoverable without automatic retries. A conservative Python index
 adds symbol discovery and import-impact queries. Agents can consume bounded context and
-the same read-only queries through MCP.
+the same read-only queries through MCP. A loopback-only dashboard presents the same
+status, evidence, context, and index as an observational field ledger.
 
 ## Requirements
 
@@ -50,6 +51,7 @@ vertex index .
 vertex query . search WorkflowService
 vertex query . impact src/vertex_harness/domain/model.py
 vertex context . --task T-1 --bytes 8000
+vertex serve . --open
 vertex status .
 ```
 
@@ -82,6 +84,17 @@ Register the local stdio server with an MCP host:
 The server supports the current stateless MCP lifecycle and legacy initialize clients.
 Its tools can read status, context, and the generated Python index; they cannot change
 state or execute verification commands.
+
+## Local dashboard
+
+`vertex serve .` prints a loopback URL using an available port. Pass `--port 8765` for
+a fixed port or `--open` to launch the default browser. The dashboard is responsive and
+read-only: HTTP mutation methods are rejected, and all lifecycle actions remain CLI
+commands.
+
+Loopback binding is not user authentication. Do not run the dashboard for a
+confidential repository on a shared machine where other local users or processes are
+untrusted.
 
 ## Project layout
 

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Vertex — Project Ledger</title>
+    <link rel="stylesheet" href="/assets/dashboard.css">
+    <script src="/assets/dashboard.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#workspace">Skip to project workspace</a>
+    <div class="paper-grain" aria-hidden="true"></div>
+
+    <header class="masthead">
+      <div class="brand-lockup">
+        <span class="brand-mark" aria-hidden="true">V/</span>
+        <div>
+          <p class="eyebrow">Repository field ledger</p>
+          <h1>Vertex</h1>
+        </div>
+      </div>
+      <div class="connection-block" aria-live="polite">
+        <span class="signal" id="connection-signal" aria-hidden="true"></span>
+        <div>
+          <strong id="connection-label">Connecting</strong>
+          <span id="last-sync">Awaiting first reading</span>
+        </div>
+      </div>
+      <button class="refresh-button" id="refresh" type="button">
+        <span>Refresh ledger</span><span aria-hidden="true">↻</span>
+      </button>
+    </header>
+
+    <div class="read-only-ribbon" role="note">
+      <span>Observation surface</span>
+      <strong>Read only</strong>
+      <span>Commands stay in the CLI</span>
+    </div>
+
+    <main id="workspace" class="workspace" tabindex="-1">
+      <section class="project-heading" aria-labelledby="project-objective">
+        <p class="section-number">01 / Current brief</p>
+        <h2 id="project-objective">Loading project objective…</h2>
+        <p class="next-action" id="next-action">Reading the next admissible action.</p>
+      </section>
+
+      <section class="instrument-strip" aria-label="Project measurements">
+        <article class="instrument">
+          <span class="instrument-label">Revision</span>
+          <strong id="metric-revision">—</strong>
+          <small>state ledger</small>
+        </article>
+        <article class="instrument">
+          <span class="instrument-label">Tasks</span>
+          <strong id="metric-tasks">—</strong>
+          <small id="metric-task-detail">planned / active / done</small>
+        </article>
+        <article class="instrument">
+          <span class="instrument-label">Evidence</span>
+          <strong id="metric-evidence">—</strong>
+          <small>durable receipts</small>
+        </article>
+        <article class="instrument">
+          <span class="instrument-label">Python map</span>
+          <strong id="metric-files">—</strong>
+          <small id="metric-index-detail">index not read</small>
+        </article>
+      </section>
+
+      <nav class="view-tabs" aria-label="Dashboard views" role="tablist">
+        <button id="tab-tasks" role="tab" aria-selected="true" aria-controls="panel-tasks" tabindex="0">Tasks</button>
+        <button id="tab-evidence" role="tab" aria-selected="false" aria-controls="panel-evidence" tabindex="-1">Evidence</button>
+        <button id="tab-map" role="tab" aria-selected="false" aria-controls="panel-map" tabindex="-1">Repository map</button>
+      </nav>
+
+      <section id="panel-tasks" class="view-panel" role="tabpanel" aria-labelledby="tab-tasks">
+        <div class="panel-heading">
+          <div>
+            <p class="section-number">02 / Work sequence</p>
+            <h2>Task register</h2>
+          </div>
+          <p>Dependencies determine what can move. Verification determines what can finish.</p>
+        </div>
+        <div id="task-list" class="task-register" aria-live="polite"></div>
+      </section>
+
+      <section id="panel-evidence" class="view-panel" role="tabpanel" aria-labelledby="tab-evidence" hidden>
+        <div class="panel-heading">
+          <div>
+            <p class="section-number">03 / Proof trail</p>
+            <h2>Evidence receipts</h2>
+          </div>
+          <p>Recent command outcomes, newest first. Output remains bounded in the ledger.</p>
+        </div>
+        <ol id="evidence-list" class="evidence-timeline" aria-live="polite"></ol>
+      </section>
+
+      <section id="panel-map" class="view-panel" role="tabpanel" aria-labelledby="tab-map" hidden>
+        <div class="panel-heading">
+          <div>
+            <p class="section-number">04 / Static bearings</p>
+            <h2>Python repository map</h2>
+          </div>
+          <p id="index-note">The index is advisory; runtime behavior can exceed the map.</p>
+        </div>
+        <div id="file-map" class="file-map" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Vertex / local loopback</span>
+      <span id="source-mark">source —</span>
+    </footer>
+
+    <noscript>This dashboard requires JavaScript to read the local Vertex API.</noscript>
+  </body>
+</html>

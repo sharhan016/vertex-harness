@@ -165,6 +165,12 @@ def build_parser() -> argparse.ArgumentParser:
     mcp = commands.add_parser("mcp", help="serve read-only MCP tools over stdio")
     _repository_argument(mcp)
     mcp.set_defaults(handler=_mcp)
+
+    serve = commands.add_parser("serve", help="serve the read-only local dashboard")
+    _repository_argument(serve)
+    serve.add_argument("--port", type=int, default=0)
+    serve.add_argument("--open", action="store_true", dest="open_browser")
+    serve.set_defaults(handler=_serve)
     return parser
 
 
@@ -412,6 +418,17 @@ def _mcp(arguments: argparse.Namespace) -> int:
     from vertex_harness.agent import serve_stdio
 
     serve_stdio(arguments.repository)
+    return 0
+
+
+def _serve(arguments: argparse.Namespace) -> int:
+    from vertex_harness.interfaces import serve
+
+    serve(
+        arguments.repository,
+        arguments.port,
+        open_browser=arguments.open_browser,
+    )
     return 0
 
 

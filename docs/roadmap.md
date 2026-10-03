@@ -12,7 +12,7 @@ commit.
 - [x] **Recovery** — checkpoints and reconciliation of interrupted work.
 - [x] **Repository intelligence** — useful, conservative source discovery and queries.
 - [x] **Agent integration** — read-only MCP tools and bounded agent-facing context.
-- [ ] **Interfaces** — local API and dashboard built on the same application services.
+- [x] **Interfaces** — local API and dashboard built on the same application services.
 - [ ] **Packaging** — installation, release checks, and supported upgrade paths.
 
 The ordering may change when an earlier phase reveals a simpler boundary. Features are
